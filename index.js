@@ -51,21 +51,36 @@ app.get("/", (req, res) => {
   res.status(200).send("Hello: hello");
 });
 
-
 app.post("/projects", (req, res) => {
   var formatted_date = moment(req.body.date);
   saveProject({
-      name: req.body.name,
-      description: req.body.description,
-      date: formatted_date
-  }).then(doc => {
+    name: req.body.name,
+    description: req.body.description,
+    date: formatted_date,
+  })
+    .then((doc) => {
       console.log("Posted project: ", doc);
       res.send(doc);
-  }).catch(error => {
+    })
+    .catch((error) => {
       console.log("Error posting project!");
       res.send({
-          "error":"Error posting project"
-      })
+        error: "Error posting project",
+      });
+    });
+});
+
+app.get("/projects", (req, res) => {
+  getProjects()
+  .then((projects) => {
+    console.log("GET projects: " + projects);
+    res.send(projects);
+  })
+  .catch((error) => {
+    console.log("Error: " + error);
+    res.send({
+      "Error":"No se pudieron obtener los proyectos"
+    });
   });
 });
 
@@ -73,11 +88,16 @@ app.post("/projects", (req, res) => {
  * Functions
  */
 
- async function saveProject(project){
-     const p = new Project(project);
-     const doc = await p.save();
-     return doc;
- }
+async function saveProject(project) {
+  const p = new Project(project);
+  const doc = await p.save();
+  return doc;
+}
+
+async function getProjects(){
+  const projects = await Project.find();
+  return projects;
+}
 
 /**
  * Server activation
