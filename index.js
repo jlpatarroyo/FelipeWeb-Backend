@@ -84,6 +84,19 @@ app.get("/projects", (req, res) => {
   });
 });
 
+app.get("/projects/:name", (req, res) =>{
+  const name = req.params.name;
+  getProject(name)
+  .then((project) => {
+    res.send(project);
+  })
+  .catch((error) => {
+    res.send({
+      "Error":"No se pudo obtener el proyecto"
+    })
+  });
+});
+
 /**
  * Functions
  */
@@ -97,6 +110,11 @@ async function saveProject(project) {
 async function getProjects(){
   const projects = await Project.find();
   return projects;
+}
+
+async function getProject(name){
+  const project = await Project.findOne({name: name});
+  return project;
 }
 
 /**
