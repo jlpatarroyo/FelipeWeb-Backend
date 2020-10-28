@@ -10,6 +10,7 @@ const { mongoclient } = require("mongodb");
 const fs = require("fs");
 const mongoose = require("mongoose");
 const Project = require("./models/Project");
+const Category = require("./models/Category");
 const moment = require("moment");
 
 /**
@@ -53,46 +54,111 @@ app.get("/", (req, res) => {
 
 app.post("/projects", (req, res) => {
   var formatted_date = moment(req.body.date);
-  saveProject({
+  var name = req.body.name;
+  const project = {
     name: req.body.name,
     description: req.body.description,
-    date: formatted_date,
-  })
+    date: formatted_date
+  }
+  saveProject(project)
     .then((doc) => {
-      console.log("Posted project: ", doc);
       res.send(doc);
     })
     .catch((error) => {
-      console.log("Error posting project!");
       res.send({
-        error: "Error posting project",
+        "Error": "Error posting project " + project,
       });
     });
 });
 
 app.get("/projects", (req, res) => {
   getProjects()
-  .then((projects) => {
-    console.log("GET projects: " + projects);
-    res.send(projects);
-  })
-  .catch((error) => {
-    console.log("Error: " + error);
-    res.send({
-      "Error":"No se pudieron obtener los proyectos"
+    .then((projects) => {
+      res.send(projects);
+    })
+    .catch((error) => {
+      res.send({
+        "Error": "Could not retrieve projects",
+      });
     });
-  });
 });
 
-app.get("/projects/:name", (req, res) =>{
+app.get("/projects/:name", (req, res) => {
   const name = req.params.name;
-  getProject(name)
-  .then((project) => {
-    res.send(project);
+  getProject(returnSpaces(name))
+    .then((project) => {
+      res.send(project);
+    })
+    .catch((error) => {
+      res.send({
+        "Error": "Couldn't retrieve project with name " + name,
+      });
+    });
+});
+
+app.delete("/projects/:name", (req, res) => {
+  const name = req.params.name;
+  deleteProject(returnSpaces(name))
+  .then((doc) => {
+    res.send(doc);
   })
   .catch((error) => {
     res.send({
-      "Error":"No se pudo obtener el proyecto"
+      "Error":"Error deleting project with name " + name
+    })
+  })
+});
+
+app.get("/categories", (req, res) => {
+  getCategories()
+    .then((projects) => {
+      res.send(projects);
+    })
+    .catch((error) => {
+      res.send({
+        "Error": "Error retrieving categories",
+      });
+    });
+});
+
+app.get("/categories/:name", (req, res) => {
+  const name = req.params.name;
+  getCategory(name)
+    .then((doc) => {
+      res.send(doc);
+    })
+    .catch((error) => {
+      res.send({
+        "Error": "Error retrieving category with name " + name,
+      });
+    });
+});
+
+app.post("/categories", (req, res) => {
+  const category = {
+    name: req.body.name,
+    description: req.body.description
+  }
+  saveCategory(category)
+    .then((doc) => {
+      res.send(doc);
+    })
+    .catch((error) => {
+      res.send({
+        "Error": "Couldn't post category " + category,
+      });
+    });
+});
+
+app.delete("/categories/:name", (req,res) =>{
+  const name = req.params.name;
+  deleteCategory(returnSpaces(name))
+  .then((doc) => {
+    res.send(doc);
+  })
+  .catch((error) => {
+    res.send({
+      "Error":"Error deleting category with name " + name 
     })
   });
 });
@@ -107,14 +173,48 @@ async function saveProject(project) {
   return doc;
 }
 
-async function getProjects(){
+async function getProjects() {
   const projects = await Project.find();
   return projects;
 }
 
-async function getProject(name){
-  const project = await Project.findOne({name: name});
+async function getProject(name) {
+  const project = await Project.findOne({ name: name });
   return project;
+}
+
+async function deleteProject(name){
+  const project = await Project.findOne({name:name});
+  const deleted = await project.remove();
+  return deleted;
+}
+
+async function getCategories() {
+  const categories = await Category.find();
+  return categories;
+}
+
+async function saveCategory(category) {
+  const c = new Category(category);
+  const doc = await c.save();
+  return doc;
+}
+
+async function getCategory(name) {
+  const category = Category.findOne({
+    name: name,
+  });
+  return category;
+}
+
+async function deleteCategory(name){
+  const category = await Category.findOne({name:name});
+  const doc = await category.remove();
+  return doc;
+}
+
+function returnSpaces(str) {
+  return str.replace("_", " ");
 }
 
 /**
