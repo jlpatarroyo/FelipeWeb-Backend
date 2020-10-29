@@ -58,15 +58,15 @@ app.post("/projects", (req, res) => {
   const project = {
     name: req.body.name,
     description: req.body.description,
-    date: formatted_date
-  }
+    date: formatted_date,
+  };
   saveProject(project)
     .then((doc) => {
       res.send(doc);
     })
     .catch((error) => {
       res.send({
-        "Error": "Error posting project " + project,
+        Error: "Error posting project " + project,
       });
     });
 });
@@ -78,7 +78,7 @@ app.get("/projects", (req, res) => {
     })
     .catch((error) => {
       res.send({
-        "Error": "Could not retrieve projects",
+        Error: "Could not retrieve projects",
       });
     });
 });
@@ -91,7 +91,7 @@ app.get("/projects/:name", (req, res) => {
     })
     .catch((error) => {
       res.send({
-        "Error": "Couldn't retrieve project with name " + name,
+        Error: "Couldn't retrieve project with name " + name,
       });
     });
 });
@@ -99,14 +99,33 @@ app.get("/projects/:name", (req, res) => {
 app.delete("/projects/:name", (req, res) => {
   const name = req.params.name;
   deleteProject(returnSpaces(name))
-  .then((doc) => {
-    res.send(doc);
-  })
-  .catch((error) => {
-    res.send({
-      "Error":"Error deleting project with name " + name
+    .then((doc) => {
+      res.send(doc);
     })
-  })
+    .catch((error) => {
+      res.send({
+        Error: "Error deleting project with name " + name,
+      });
+    });
+});
+
+app.put("/projects/:name", (req, res, next) => {
+  const new_project = {
+    name: req.body.name,
+    description: req.body.description,
+    date: req.body.date,
+  };
+  const p_name = req.params.name;
+  updateProject(returnSpaces(p_name), new_project)
+    .then((doc) => {
+      res.send(doc);
+    })
+    .catch((error) => {
+      res.send({
+        Error: "Error updating project with name " + new_project.name,
+        Cause: error,
+      });
+    });
 });
 
 app.get("/categories", (req, res) => {
@@ -116,7 +135,7 @@ app.get("/categories", (req, res) => {
     })
     .catch((error) => {
       res.send({
-        "Error": "Error retrieving categories",
+        Error: "Error retrieving categories",
       });
     });
 });
@@ -129,7 +148,7 @@ app.get("/categories/:name", (req, res) => {
     })
     .catch((error) => {
       res.send({
-        "Error": "Error retrieving category with name " + name,
+        Error: "Error retrieving category with name " + name,
       });
     });
 });
@@ -137,30 +156,47 @@ app.get("/categories/:name", (req, res) => {
 app.post("/categories", (req, res) => {
   const category = {
     name: req.body.name,
-    description: req.body.description
-  }
+    description: req.body.description,
+  };
   saveCategory(category)
     .then((doc) => {
       res.send(doc);
     })
     .catch((error) => {
       res.send({
-        "Error": "Couldn't post category " + category,
+        Error: "Couldn't post category " + category,
       });
     });
 });
 
-app.delete("/categories/:name", (req,res) =>{
+app.delete("/categories/:name", (req, res) => {
   const name = req.params.name;
   deleteCategory(returnSpaces(name))
-  .then((doc) => {
-    res.send(doc);
-  })
-  .catch((error) => {
-    res.send({
-      "Error":"Error deleting category with name " + name 
+    .then((doc) => {
+      res.send(doc);
     })
-  });
+    .catch((error) => {
+      res.send({
+        Error: "Error deleting category with name " + name,
+      });
+    });
+});
+
+app.put("/categories/:name", (req, res, next) => {
+  const new_category = {
+    name: req.body.name,
+    description: req.body.description,
+  };
+  const p_name = req.params.name;
+  updateCategory(returnSpaces(p_name), new_category)
+    .then((doc) => {
+      res.send(doc);
+    })
+    .catch((error) => {
+      res.send({
+        Error: "Error updating category with name " + new_category.name,
+      });
+    });
 });
 
 /**
@@ -183,10 +219,28 @@ async function getProject(name) {
   return project;
 }
 
-async function deleteProject(name){
-  const project = await Project.findOne({name:name});
+async function deleteProject(name) {
+  const project = await Project.findOne({ name: name });
   const deleted = await project.remove();
   return deleted;
+}
+
+async function updateProject(name, new_project) {
+  const project = await Project.findOne({ name: name });
+  if (new_project.name && project.name !== new_project.name) {
+    project.name = new_project.name;
+  }
+  if (
+    new_project.description &&
+    project.description !== new_project.description
+  ) {
+    project.description = new_project.description;
+  }
+  if (new_project.date && project.date !== new_project.date) {
+    project.date = new_project.date;
+  }
+  const doc = await project.save();
+  return doc;
 }
 
 async function getCategories() {
@@ -207,9 +261,24 @@ async function getCategory(name) {
   return category;
 }
 
-async function deleteCategory(name){
-  const category = await Category.findOne({name:name});
+async function deleteCategory(name) {
+  const category = await Category.findOne({ name: name });
   const doc = await category.remove();
+  return doc;
+}
+
+async function updateCategory(name,new_category) {
+  const category = await Category.findOne({ name: name });
+  if (new_category.name && category.name !== new_category.name) {
+    category.name = new_category.name;
+  }
+  if (
+    new_category.description &&
+    category.description !== new_category.description
+  ) {
+    category.description = new_category.description;
+  }
+  const doc = await category.save();
   return doc;
 }
 
