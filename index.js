@@ -12,6 +12,7 @@ const mongoose = require("mongoose");
 const Project = require("./models/Project");
 const Category = require("./models/Category");
 const moment = require("moment");
+const cors = require("cors");
 
 /**
  * Data files
@@ -31,6 +32,13 @@ var bodyParser = require("body-parser");
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 const db = mongoose.connection;
+
+var corsOptions = {
+  origin: "http://localhost:4200",
+  optionSucessStatus: 200,
+};
+
+app.use(cors(corsOptions));
 
 /**
  * Test db connection with Mongoose
@@ -59,6 +67,7 @@ app.post("/projects", (req, res) => {
     name: req.body.name,
     description: req.body.description,
     date: formatted_date,
+    categories: req.body.categories,
   };
   saveProject(project)
     .then((doc) => {
@@ -105,6 +114,7 @@ app.delete("/projects/:name", (req, res) => {
     .catch((error) => {
       res.send({
         Error: "Error deleting project with name " + name,
+        Cause: error,
       });
     });
 });
@@ -114,6 +124,7 @@ app.put("/projects/:name", (req, res, next) => {
     name: req.body.name,
     description: req.body.description,
     date: req.body.date,
+    categories: req.body.categories,
   };
   const p_name = req.params.name;
   updateProject(returnSpaces(p_name), new_project)
@@ -126,6 +137,69 @@ app.put("/projects/:name", (req, res, next) => {
         Cause: error,
       });
     });
+});
+
+app.get("/projects/:name/categories", (req, res) => {
+  const project_name = returnSpaces(req.params.name);
+  getProjectCategories(project_name)
+    .then((doc) => {
+      res.send(doc);
+    })
+    .catch((error) => {
+      res.send({
+        Error:
+          "Error retrieving project " +
+          returnSpaces(project_name) +
+          " categories",
+        Cause: error,
+      });
+    });
+});
+
+app.post("/projects/:name/categories", (req, res, next) => {
+  const new_category = {
+    name: req.body.name,
+    description: req.body.description,
+  };
+  const project_name = req.params.name;
+  addCategoryToProject(returnSpaces(project_name), new_category)
+    .then((doc) => {
+      res.send(doc);
+    })
+    .catch((error) => {
+      res.send({
+        Error: "Error adding category to project " + returnSpaces(project_name),
+        Cause: error,
+      });
+    });
+});
+
+app.delete("/projects/:project_name/categories/:category_name", (req, res) => {
+  const project_name = returnSpaces(req.params.project_name);
+  const category_name = returnSpaces(req.params.category_name);
+  deleteCategoryFromProject(
+    project_name,
+    category_name
+  )
+    .then((doc) => {
+      res.send(doc);
+    })
+    .catch((error) => {
+      res.send({
+        Error:
+          "Error deleting category '" +
+          category_name +
+          "' from project '" +
+          project_name +
+          "'",
+        Cause: error,
+      });
+    });
+  deleteProjectFromCategory(category_name, project_name)
+  .then()
+  .catch((error) => {
+    console.log(error);
+  });
 });
 
 app.get("/categories", (req, res) => {
@@ -157,6 +231,7 @@ app.post("/categories", (req, res) => {
   const category = {
     name: req.body.name,
     description: req.body.description,
+    projects: req.body.projects,
   };
   saveCategory(category)
     .then((doc) => {
@@ -219,14 +294,89 @@ async function getProject(name) {
   return project;
 }
 
-async function deleteProject(name) {
+async function getProjectCategories(name) {
   const project = await Project.findOne({ name: name });
+  const categories = project.categories;
+  return categories;
+}
+
+async function deleteProject(name) {
+  const project = await getProject(name);
   const deleted = await project.remove();
   return deleted;
 }
 
+async function addCategoryToProject(project_name, new_category) {
+  const project = await getProject(project_name);
+  const category = await getCategory(returnSpaces(new_category.name));
+  if (project) {
+    if (category) {
+      const project_categories = project.categories;
+      if (!hasKey(project_categories, category.name)) {
+        project.categories.push(category.name);
+        category.projects.push(project_name);
+        await category.save();
+      }
+    } else {
+      const _category = new Category(new_category);
+      _category.projects.push(project_name);
+      await _category.save();
+      console.log(
+        "Saving category " + new_category.name + " in project " + project_name
+      );
+      project.categories.push(_category.name);
+    }
+  }
+  const doc = await project.save();
+  return doc;
+}
+
+async function deleteCategoryFromProject(project_name, category_name) {
+  const project = await getProject(project_name);
+  if (project) {
+    const project_categories = project.categories;
+    if (hasKey(project_categories, category_name)) {
+      const index = project_categories.indexOf(category_name);
+      project_categories.splice(index, 1);
+      project.categories = project_categories;
+      const doc = await project.save();
+      return doc;
+    }
+  }
+  throw {
+    Error:
+      "Project with name '" +
+      project_name +
+      "' has not a category '" +
+      category_name +
+      "'",
+  };
+}
+
+async function deleteProjectFromCategory(category_name, project_name) {
+  const category = await getCategory(category_name);
+  if (category) {
+    const category_projects = category.projects;
+    if (hasKey(category_projects, project_name)) {
+      const index = category_projects.indexOf(project_name);
+      category_projects.splice(index, 1);
+      category.projects = category_projects;
+      const doc = await category.save();
+      return doc;
+    }
+  }
+  throw {
+    Error:
+      "Category with name '" +
+      category_name +
+      "' has no project " +
+      project_name +
+      "'",
+  };
+}
+
 async function updateProject(name, new_project) {
-  const project = await Project.findOne({ name: name });
+  const project = await getProject(name);
   if (new_project.name && project.name !== new_project.name) {
     project.name = new_project.name;
   }
@@ -258,7 +408,12 @@ async function getCategory(name) {
   const category = Category.findOne({
     name: name,
   });
-  return category;
+  if (category) {
+    return category;
+  }
+  throw {
+    Error: "Cannot find category with name " + name,
+  };
 }
 
 async function deleteCategory(name) {
@@ -267,7 +422,7 @@ async function deleteCategory(name) {
   return doc;
 }
 
-async function updateCategory(name,new_category) {
+async function updateCategory(name, new_category) {
   const category = await Category.findOne({ name: name });
   if (new_category.name && category.name !== new_category.name) {
     category.name = new_category.name;
@@ -282,8 +437,22 @@ async function updateCategory(name,new_category) {
   return doc;
 }
 
+async function deleteProjectInCategory(category_name, project_name) {}
+
+async function addProjectToCategory(category_name, project) {}
+
+async function getCategoryProjects(category_name) {}
+
 function returnSpaces(str) {
   return str.replace("_", " ");
+}
+
+function isEmptyObject(object) {
+  return !Object.keys(object).length;
+}
+
+function hasKey(arr, key) {
+  return arr.indexOf(key) !== -1;
 }
 
 /**
